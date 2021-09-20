@@ -7,8 +7,8 @@ from PIL import Image
 from model import SiameseModel
 from flask import Flask, request, jsonify
 
-IMG_WIDTH = 32
-IMG_HEIGHT = 32
+IMG_WIDTH = 128
+IMG_HEIGHT = 128
 IMG_CHANNELS = 3
 
 app = Flask(__name__)

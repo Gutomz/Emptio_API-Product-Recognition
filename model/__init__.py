@@ -1,15 +1,12 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"]="-1"
-
-import numpy as np
-import imageio
-import tensorflow as tf
-from tensorflow.keras.models import Model, Sequential
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Lambda, Dropout
-from tensorflow.keras.layers.experimental.preprocessing import RandomFlip, RandomRotation
-from tensorflow.keras.regularizers import l2
 from tensorflow.keras import backend as K
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.layers.experimental.preprocessing import RandomFlip, RandomRotation
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Lambda, Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import Model, Sequential
+import imageio
+import numpy as np
+import os
 
 
 class SiameseModel():
@@ -36,7 +33,7 @@ class SiameseModel():
         images_path = os.path.join(root_path, "images")
         self.validate_path(images_path)
 
-        weights_path = os.path.join(root_path, "model_weights.h5")
+        weights_path = os.path.join(root_path, "model.weights.h5")
         self.validate_path(weights_path)
 
         self.root_path = root_path
@@ -48,23 +45,42 @@ class SiameseModel():
             Model architecture based on the one provided in: http://www.cs.utoronto.ca/~gkoch/files/msc-thesis.pdf
         """
 
+        def initialize_bias(shape, dtype=None):
+            """
+                The paper, http://www.cs.utoronto.ca/~gkoch/files/msc-thesis.pdf
+                suggests to initialize CNN layer bias with mean as 0.5 and standard deviation of 0.01
+            """
+            return np.random.normal(loc=0.5, scale=1e-2, size=shape)
+
+        def initialize_weights(shape, dtype=None):
+            """
+                The paper, http://www.cs.utoronto.ca/~gkoch/files/msc-thesis.pdf
+                suggests to initialize CNN layer weights with mean as 0.0 and standard deviation of 0.01
+            """
+            return np.random.normal(loc=0.0, scale=1e-2, size=shape)
+
         # Define the tensors for the two input images
         left_input = Input(input_shape)
         right_input = Input(input_shape)
 
         # Convolutional Neural Network
         model = Sequential()
-        model.add(Conv2D(32, 3, padding="same",
-                  activation='relu', input_shape=input_shape))
-        model.add(Conv2D(32, 3, padding="same", activation='relu'))
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
-        model.add(Conv2D(64, 3, padding="same", activation='relu'))
-        model.add(Conv2D(64, 3, padding="same", activation='relu'))
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.25))
+        model.add(Conv2D(64, (10, 10), activation='relu', input_shape=input_shape,
+                         kernel_initializer=initialize_weights, kernel_regularizer=l2(2e-4)))
+        model.add(Conv2D(64, (10, 10), activation='relu',
+                         kernel_initializer=initialize_weights, kernel_regularizer=l2(2e-4)))
+        model.add(MaxPooling2D())
+        model.add(Conv2D(128, (7, 7), activation='relu', kernel_initializer=initialize_weights,
+                         bias_initializer=initialize_bias, kernel_regularizer=l2(2e-4)))
+        model.add(MaxPooling2D())
+        model.add(Conv2D(128, (4, 4), activation='relu', kernel_initializer=initialize_weights,
+                         bias_initializer=initialize_bias, kernel_regularizer=l2(2e-4)))
+        model.add(MaxPooling2D())
+        model.add(Conv2D(256, (4, 4), activation='relu', kernel_initializer=initialize_weights,
+                         bias_initializer=initialize_bias, kernel_regularizer=l2(2e-4)))
         model.add(Flatten())
-        model.add(Dense(512, activation='sigmoid'))
+        model.add(Dense(4096, activation='sigmoid', kernel_regularizer=l2(1e-3),
+                        kernel_initializer=initialize_weights, bias_initializer=initialize_bias))
 
         # Generate the encodings (feature vectors) for the two images
         encoded_l = model(left_input)
@@ -86,7 +102,10 @@ class SiameseModel():
 
     def init_model(self):
         model = self.get_siamese_model((self.WIDTH, self.HEIGHT, self.CHANNEL))
+        optimizer = Adam(learning_rate=0.00006)
+        model.compile(loss="binary_crossentropy", optimizer=optimizer)
         model.load_weights(self.weights_path)
+
         self.model = model
         return model
 
