@@ -6,6 +6,7 @@ import utils
 from PIL import Image
 from model import SiameseModel
 from flask import Flask, request, jsonify
+from waitress import serve
 
 IMG_WIDTH = 128
 IMG_HEIGHT = 128
@@ -44,7 +45,7 @@ def predictRoute():
     os.remove(tmp_path)
 
     if not prediction:
-        return "failed to predict", 500
+        return "Not found", 404
 
     return jsonify({"prediction": prediction})
 
@@ -90,4 +91,4 @@ def notFoundRoute(error):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0')
+    serve(app, listen="*:{}".format(os.environ["PR_PORT"]))

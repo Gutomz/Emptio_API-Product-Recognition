@@ -147,4 +147,8 @@ class SiameseModel():
         probs = self.model.predict(pairs)
 
         index = np.argmax(probs)
+
+        if(probs[index] < 0.55):
+            return None
+
         return classes[index]
